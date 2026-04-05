@@ -1,7 +1,13 @@
 import logging
-import MetaTrader5 as mt5
 from datetime import datetime
 import time
+
+try:
+    import MetaTrader5 as mt5
+    HAS_MT5 = True
+except ImportError:
+    HAS_MT5 = False
+    mt5 = None
 
 logger = logging.getLogger(__name__)
 

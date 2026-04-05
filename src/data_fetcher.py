@@ -1,10 +1,16 @@
 import logging
-import MetaTrader5 as mt5
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
 from pathlib import Path
 import json
+
+try:
+    import MetaTrader5 as mt5
+    HAS_MT5 = True
+except ImportError:
+    HAS_MT5 = False
+    mt5 = None
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +31,10 @@ class DataFetcher:
     def connect_to_mt5(self):
         """Establish connection to MetaTrader5."""
         try:
+            if not HAS_MT5:
+                logger.warning("MetaTrader5 not available - using demo mode")
+                return False
+
             if not mt5.initialize(
                 login=self.config.MT5_LOGIN,
                 password=self.config.MT5_PASSWORD,
@@ -43,9 +53,10 @@ class DataFetcher:
     def disconnect_from_mt5(self):
         """Disconnect from MetaTrader5."""
         try:
-            mt5.shutdown()
+            if HAS_MT5 and mt5:
+                mt5.shutdown()
+                logger.info("Disconnected from MetaTrader5")
             self.connected = False
-            logger.info("Disconnected from MetaTrader5")
         except Exception as e:
             logger.error(f"Error disconnecting from MT5: {e}")
 

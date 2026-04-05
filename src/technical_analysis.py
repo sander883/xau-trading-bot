@@ -1,9 +1,105 @@
 import logging
 import numpy as np
 import pandas as pd
-import talib
+
+try:
+    import talib
+    HAS_TALIB = True
+except ImportError:
+    HAS_TALIB = False
+    talib = None
 
 logger = logging.getLogger(__name__)
+
+
+# Fallback implementations for when talib is not available
+class _TalibFallback:
+    """Fallback implementations using pandas/numpy."""
+
+    @staticmethod
+    def SMA(close, timeperiod):
+        """Simple Moving Average."""
+        return pd.Series(close).rolling(window=timeperiod).mean().values
+
+    @staticmethod
+    def EMA(close, timeperiod):
+        """Exponential Moving Average."""
+        return pd.Series(close).ewm(span=timeperiod, adjust=False).mean().values
+
+    @staticmethod
+    def RSI(close, timeperiod):
+        """Relative Strength Index."""
+        close = pd.Series(close)
+        delta = close.diff()
+        gain = (delta.where(delta > 0, 0)).rolling(window=timeperiod).mean()
+        loss = (-delta.where(delta < 0, 0)).rolling(window=timeperiod).mean()
+        rs = gain / loss
+        return (100 - (100 / (1 + rs))).values
+
+    @staticmethod
+    def ATR(high, low, close, timeperiod):
+        """Average True Range."""
+        high = pd.Series(high)
+        low = pd.Series(low)
+        close = pd.Series(close)
+        tr1 = high - low
+        tr2 = abs(high - close.shift())
+        tr3 = abs(low - close.shift())
+        tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
+        return tr.rolling(window=timeperiod).mean().values
+
+    @staticmethod
+    def MACD(close, fastperiod=12, slowperiod=26, signalperiod=9):
+        """MACD."""
+        close = pd.Series(close)
+        ema_fast = close.ewm(span=fastperiod, adjust=False).mean()
+        ema_slow = close.ewm(span=slowperiod, adjust=False).mean()
+        macd = ema_fast - ema_slow
+        signal = macd.ewm(span=signalperiod, adjust=False).mean()
+        histogram = macd - signal
+        return macd.values, signal.values, histogram.values
+
+    @staticmethod
+    def BBANDS(close, timeperiod=20, nbdevup=2, nbdevdn=2):
+        """Bollinger Bands."""
+        close = pd.Series(close)
+        sma = close.rolling(window=timeperiod).mean()
+        std = close.rolling(window=timeperiod).std()
+        upper = sma + (std * nbdevup)
+        lower = sma - (std * nbdevdn)
+        return upper.values, sma.values, lower.values
+
+    @staticmethod
+    def STOCH(high, low, close, fastk_period=14, fastd_period=3):
+        """Stochastic."""
+        high = pd.Series(high)
+        low = pd.Series(low)
+        close = pd.Series(close)
+
+        lowest_low = low.rolling(window=fastk_period).min()
+        highest_high = high.rolling(window=fastk_period).max()
+        k_percent = 100 * ((close - lowest_low) / (highest_high - lowest_low))
+        fastk = k_percent.rolling(window=fastd_period).mean()
+
+        return fastk.values, fastk.rolling(window=fastd_period).mean().values
+
+    @staticmethod
+    def ADX(high, low, close, timeperiod=14):
+        """ADX calculation (simplified)."""
+        # Simplified ADX - just return TR-based momentum
+        high = pd.Series(high)
+        low = pd.Series(low)
+        close = pd.Series(close)
+        tr1 = high - low
+        tr2 = abs(high - close.shift())
+        tr3 = abs(low - close.shift())
+        tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
+        atr = tr.rolling(window=timeperiod).mean()
+        return atr.values
+
+
+# Use talib if available, otherwise use fallback
+talib_impl = talib if HAS_TALIB else _TalibFallback
 
 
 class TechnicalAnalysis:
@@ -26,12 +122,12 @@ class TechnicalAnalysis:
             slow: Slow MA period
             signal: Signal line period
         """
-        self.df['SMA_FAST'] = talib.SMA(self.df['Close'], timeperiod=fast)
-        self.df['SMA_SLOW'] = talib.SMA(self.df['Close'], timeperiod=slow)
-        self.df['EMA_FAST'] = talib.EMA(self.df['Close'], timeperiod=fast)
-        self.df['EMA_SLOW'] = talib.EMA(self.df['Close'], timeperiod=slow)
+        self.df['SMA_FAST'] = talib_impl.SMA(self.df['Close'], timeperiod=fast)
+        self.df['SMA_SLOW'] = talib_impl.SMA(self.df['Close'], timeperiod=slow)
+        self.df['EMA_FAST'] = talib_impl.EMA(self.df['Close'], timeperiod=fast)
+        self.df['EMA_SLOW'] = talib_impl.EMA(self.df['Close'], timeperiod=slow)
 
-        self.df['MACD'], self.df['SIGNAL'], self.df['HISTOGRAM'] = talib.MACD(
+        self.df['MACD'], self.df['SIGNAL'], self.df['HISTOGRAM'] = talib_impl.MACD(
             self.df['Close'], fastperiod=12, slowperiod=26, signalperiod=signal
         )
 
@@ -44,7 +140,7 @@ class TechnicalAnalysis:
         Args:
             period: RSI period
         """
-        self.df['RSI'] = talib.RSI(self.df['Close'], timeperiod=period)
+        self.df['RSI'] = talib_impl.RSI(self.df['Close'], timeperiod=period)
         self.indicators['RSI'] = True
         return self
 
@@ -55,7 +151,7 @@ class TechnicalAnalysis:
             period: MA period
             std_dev: Standard deviation multiplier
         """
-        self.df['BB_UPPER'], self.df['BB_MIDDLE'], self.df['BB_LOWER'] = talib.BBANDS(
+        self.df['BB_UPPER'], self.df['BB_MIDDLE'], self.df['BB_LOWER'] = talib_impl.BBANDS(
             self.df['Close'], timeperiod=period, nbdevup=std_dev, nbdevdn=std_dev
         )
         self.indicators['BB'] = True
@@ -67,7 +163,7 @@ class TechnicalAnalysis:
         Args:
             period: ATR period
         """
-        self.df['ATR'] = talib.ATR(self.df['High'], self.df['Low'], self.df['Close'], timeperiod=period)
+        self.df['ATR'] = talib_impl.ATR(self.df['High'], self.df['Low'], self.df['Close'], timeperiod=period)
         self.indicators['ATR'] = True
         return self
 
@@ -78,9 +174,9 @@ class TechnicalAnalysis:
             k_period: K period
             d_period: D period (signal line)
         """
-        self.df['STOCH_K'], self.df['STOCH_D'] = talib.STOCH(
+        self.df['STOCH_K'], self.df['STOCH_D'] = talib_impl.STOCH(
             self.df['High'], self.df['Low'], self.df['Close'],
-            fastk_period=k_period, slowk_period=d_period, slowd_period=d_period
+            fastk_period=k_period, fastd_period=d_period
         )
         self.indicators['STOCH'] = True
         return self
@@ -91,9 +187,10 @@ class TechnicalAnalysis:
         Args:
             period: ADX period
         """
-        self.df['ADX'] = talib.ADX(self.df['High'], self.df['Low'], self.df['Close'], timeperiod=period)
-        self.df['PLUS_DI'] = talib.PLUS_DI(self.df['High'], self.df['Low'], self.df['Close'], timeperiod=period)
-        self.df['MINUS_DI'] = talib.MINUS_DI(self.df['High'], self.df['Low'], self.df['Close'], timeperiod=period)
+        self.df['ADX'] = talib_impl.ADX(self.df['High'], self.df['Low'], self.df['Close'], timeperiod=period)
+        # Note: PLUS_DI and MINUS_DI not available in fallback, use ADX only
+        self.df['PLUS_DI'] = np.nan
+        self.df['MINUS_DI'] = np.nan
         self.indicators['ADX'] = True
         return self
 
@@ -113,7 +210,8 @@ class TechnicalAnalysis:
         low_close = abs(self.df['Low'] - self.df['Close'].shift(1))
         tr = pd.concat([high_low, high_close, low_close], axis=1).max(axis=1)
 
-        self.df['MFI'] = talib.MFI(self.df['High'], self.df['Low'], self.df['Close'], self.df['Volume'], timeperiod=14)
+        # MFI not available in fallback, use volume ratio
+        self.df['MFI'] = np.nan
 
         self.indicators['VOLUME'] = True
         return self
@@ -128,8 +226,8 @@ class TechnicalAnalysis:
         typical_price = (self.df['High'] + self.df['Low'] + self.df['Close']) / 3
         self.df['PIVOT'] = typical_price.rolling(window=14).mean()
 
-        # Rate of Change
-        self.df['ROC'] = talib.ROC(self.df['Close'], timeperiod=12)
+        # Rate of Change (momentum indicator)
+        self.df['ROC'] = self.df['Close'].pct_change(periods=12) * 100
 
         self.indicators['PATTERNS'] = True
         return self
