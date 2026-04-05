@@ -14,10 +14,12 @@ A production-ready automated trading bot for XAUUSD (Gold) with AI-powered predi
 - **Logging System**: Comprehensive logging with rotation
 
 ### Advanced Features
+- **Professional Backtesting**: Advanced metrics, parameter optimization, HTML reports
+- **Model Management**: Automatic retraining, feature preprocessing, prediction logging
+- **Performance Tracking**: Real-time metrics with Sharpe, Sortino, and Calmar ratios
 - Model persistence (save/load trained models)
 - Feature importance analysis
-- Equity curve tracking
-- Sharpe ratio and profit factor calculations
+- Equity curve tracking with visualization
 - Maximum drawdown monitoring
 - Dynamic position sizing based on equity
 
@@ -36,14 +38,17 @@ xau-trading-bot/
 │   └── (trained ML models)
 ├── src/
 │   ├── __init__.py
-│   ├── data_fetcher.py        # MetaTrader5 data retrieval
-│   ├── technical_analysis.py  # Technical indicators
-│   ├── ml_model.py            # AI model (XGBoost/sklearn)
-│   ├── risk_manager.py        # Risk management logic
-│   ├── trading_engine.py      # Trade execution
-│   ├── telegram_notifier.py   # Notifications
-│   ├── backtester.py          # Backtesting system
-│   └── logger.py              # Logging setup
+│   ├── data_fetcher.py            # MetaTrader5 data retrieval
+│   ├── technical_analysis.py      # Technical indicators
+│   ├── professional_xgboost_model.py  # Professional XGBoost model
+│   ├── model_manager.py           # Model management & retraining
+│   ├── retraining_scheduler.py    # Automatic model retraining
+│   ├── advanced_backtester.py     # Advanced backtesting system
+│   ├── risk_manager.py            # Risk management logic
+│   ├── trading_engine.py          # Trade execution
+│   ├── telegram_notifier.py       # Notifications
+│   ├── backtester.py              # Backtesting system
+│   └── logger.py                  # Logging setup
 ├── main.py                    # Application entry point
 ├── requirements.txt           # Python dependencies
 ├── .env.example               # Environment variables template
@@ -169,20 +174,26 @@ Trade Execution + Notifications
 
 ## Training & Backtesting
 
-### Model Training
+### Model Training & Management
 The bot automatically:
 1. Fetches historical data (configurable date range)
-2. Calculates 10+ technical indicators
-3. Trains XGBoost or sklearn model
-4. Saves model for future use
-5. Logs accuracy metrics
+2. Calculates 30+ technical indicators with advanced feature engineering
+3. Trains XGBoost classifier with automatic preprocessing
+4. Saves model versions for future use and rollback
+5. Logs predictions and performance metrics
+6. Scheduled retraining (daily/weekly/monthly options)
+7. Tracks accuracy, precision, recall, and F1 scores
 
-### Backtest Metrics
-- Total trades and win rate
-- ROI and profit factor
-- Maximum drawdown
-- Sharpe ratio
-- Trade-by-trade breakdown
+### Advanced Backtesting
+Professional-grade backtesting with:
+- **Comprehensive Metrics**: 15+ metrics including Sharpe, Sortino, Calmar ratios
+- **Parameter Optimization**: Grid search with weighted scoring engine
+- **Visualizations**: Equity curve, drawdown charts, trade distributions
+- **HTML Reports**: Professional formatted reports with embedded charts
+- **CSV Export**: Detailed trade data for external analysis
+- **Performance Analysis**: Win rate, profit factor, expectancy, drawdown duration
+
+See [ADVANCED_BACKTESTER_GUIDE.md](ADVANCED_BACKTESTER_GUIDE.md) for complete documentation.
 
 ## Monitoring
 
@@ -291,9 +302,13 @@ grep ERROR logs/trading_bot.log
 
 ## Roadmap
 
-- [ ] Multi-timeframe analysis
+- [x] Advanced backtesting with comprehensive metrics
+- [x] Parameter optimization (grid search)
+- [x] Professional HTML report generation
+- [x] Automatic model retraining and management
+- [x] Multi-timeframe analysis
 - [ ] Multiple symbol support
-- [ ] Advanced backtesting with commission/slippage
+- [ ] Commission/slippage simulation
 - [ ] Web dashboard for monitoring
 - [ ] Database integration for trade history
 - [ ] Docker containerization
