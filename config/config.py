@@ -21,6 +21,9 @@ class TradingConfig:
     TIMEFRAME = os.getenv('TIMEFRAME', '1H')
     LOT_SIZE = float(os.getenv('LOT_SIZE', '0.1'))
     INITIAL_BALANCE = float(os.getenv('INITIAL_BALANCE', '10000'))
+    MULTI_TIMEFRAME_ENABLED = os.getenv('MULTI_TIMEFRAME_ENABLED', 'true').lower() == 'true'
+    MULTI_TIMEFRAMES = os.getenv('MULTI_TIMEFRAMES', 'M5,M15,H1').split(',')
+    STRATEGY_TYPE = os.getenv('STRATEGY_TYPE', 'combined').lower()
 
     # Risk Management
     MAX_DAILY_LOSS = float(os.getenv('MAX_DAILY_LOSS', '500'))
@@ -28,6 +31,8 @@ class TradingConfig:
     STOP_LOSS_PIPS = float(os.getenv('STOP_LOSS_PIPS', '50'))
     TAKE_PROFIT_PIPS = float(os.getenv('TAKE_PROFIT_PIPS', '150'))
     MAX_OPEN_TRADES = int(os.getenv('MAX_OPEN_TRADES', '3'))
+    RISK_PERCENT_PER_TRADE = float(os.getenv('RISK_PERCENT_PER_TRADE', '2.0'))
+    MIN_RISK_REWARD_RATIO = float(os.getenv('MIN_RISK_REWARD_RATIO', '1.5'))
 
     # AI Model Configuration
     MODEL_TYPE = os.getenv('MODEL_TYPE', 'xgboost').lower()

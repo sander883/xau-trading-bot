@@ -168,3 +168,135 @@ Remaining: ${risk_metrics['remaining_daily_loss_limit']:,.2f}"""
             message += f"\n<b>Details:</b> {details}"
 
         self.send_message(message)
+
+    def send_signal_analysis(self, symbol, signal_dict):
+        """Send detailed signal analysis.
+
+        Args:
+            symbol: Trading symbol
+            signal_dict: Signal analysis dictionary
+        """
+        signal = signal_dict.get('combined_signal', 'NEUTRAL')
+        strength = signal_dict.get('combined_strength', 0)
+
+        emoji = "🟢" if signal == 'BUY' else "🔴" if signal == 'SELL' else "🟡"
+
+        message = f"""{emoji} <b>Signal Analysis - {symbol}</b>
+<b>Time:</b> {datetime.now().strftime('%H:%M:%S')}
+
+<b>Combined Signal:</b> {signal} ({strength:.2f})
+<b>EMA:</b> {signal_dict.get('ema_signal', 'N/A')} ({signal_dict.get('ema_strength', 0):.2f})
+<b>RSI:</b> {signal_dict.get('rsi_signal', 'N/A')} ({signal_dict.get('rsi_strength', 0):.2f})
+<b>AI:</b> {signal_dict.get('ai_signal', 'N/A')} ({signal_dict.get('ai_confidence', 0):.2f})"""
+
+        self.send_message(message)
+
+    def send_mtf_analysis(self, symbol, mtf_summary):
+        """Send multi-timeframe analysis.
+
+        Args:
+            symbol: Trading symbol
+            mtf_summary: MTF summary dictionary
+        """
+        overall_trend = mtf_summary.get('overall_trend', 'NEUTRAL')
+        aligned = mtf_summary.get('alignment', False)
+        confidence = mtf_summary.get('consensus_confidence', 0)
+
+        emoji = "📈" if 'UP' in overall_trend else "📉" if 'DOWN' in overall_trend else "↔️"
+        align_emoji = "✅" if aligned else "⚠️"
+
+        trends_text = ""
+        for tf, trend in mtf_summary.get('trends', {}).items():
+            trends_text += f"\n{tf}: {trend}"
+
+        message = f"""{emoji} <b>MTF Analysis - {symbol}</b>
+<b>Time:</b> {datetime.now().strftime('%H:%M:%S')}
+
+<b>Overall Trend:</b> {overall_trend}
+<b>Alignment:</b> {align_emoji} {'Aligned' if aligned else 'Not Aligned'}
+<b>Confidence:</b> {confidence:.2%}
+
+<b>Timeframes:</b>{trends_text}"""
+
+        self.send_message(message)
+
+    def send_position_opened(self, symbol, trade_type, entry_price, position_size, sl, tp, risk_percent):
+        """Send detailed position opened alert.
+
+        Args:
+            symbol: Trading symbol
+            trade_type: 'BUY' or 'SELL'
+            entry_price: Entry price
+            position_size: Position size in lots
+            sl: Stop loss
+            tp: Take profit
+            risk_percent: Risk percentage
+        """
+        emoji = "📈" if trade_type == "BUY" else "📉"
+        rr_ratio = abs((tp - entry_price) / (entry_price - sl)) if (entry_price - sl) != 0 else 0
+
+        message = f"""{emoji} <b>Position Opened - {symbol}</b>
+<b>Time:</b> {datetime.now().strftime('%H:%M:%S')}
+
+<b>Type:</b> {trade_type}
+<b>Entry:</b> {entry_price:.2f}
+<b>Position Size:</b> {position_size:.2f} lots
+<b>Risk %:</b> {risk_percent:.2f}%
+
+<b>Levels:</b>
+SL: {sl:.2f} ({abs(entry_price - sl):.2f} pips)
+TP: {tp:.2f} ({abs(tp - entry_price):.2f} pips)
+R:R Ratio: 1:{rr_ratio:.2f}"""
+
+        self.send_message(message)
+
+    def send_risk_alert(self, alert_type, details):
+        """Send risk management alert.
+
+        Args:
+            alert_type: Type of alert ('MAX_LOSS', 'DRAWDOWN', 'SIZE_REDUCED', etc.)
+            details: Alert details dictionary
+        """
+        emojis = {
+            'MAX_LOSS': '🛑',
+            'DRAWDOWN': '📉',
+            'SIZE_REDUCED': '⚠️',
+            'RECOVERY': '📈',
+            'LIMIT_REACHED': '🔒'
+        }
+
+        emoji = emojis.get(alert_type, '⚠️')
+
+        message = f"""{emoji} <b>Risk Alert</b>
+<b>Type:</b> {alert_type}
+<b>Time:</b> {datetime.now().strftime('%H:%M:%S')}"""
+
+        if isinstance(details, dict):
+            for key, value in details.items():
+                if isinstance(value, float):
+                    message += f"\n<b>{key}:</b> {value:.2f}"
+                else:
+                    message += f"\n<b>{key}:</b> {value}"
+
+        self.send_message(message)
+
+    def send_trading_summary(self, symbol, timeframe, current_price, indicators):
+        """Send trading summary.
+
+        Args:
+            symbol: Trading symbol
+            timeframe: Timeframe
+            current_price: Current price
+            indicators: Dictionary with indicator values
+        """
+        message = f"""📊 <b>Trading Summary - {symbol}</b>
+<b>Timeframe:</b> {timeframe}
+<b>Time:</b> {datetime.now().strftime('%H:%M:%S')}
+
+<b>Price:</b> {current_price:.2f}
+<b>RSI:</b> {indicators.get('rsi', 'N/A')}
+<b>MACD:</b> {indicators.get('macd', 'N/A')}
+<b>BB Position:</b> {indicators.get('bb_position', 'N/A')}
+<b>ATR:</b> {indicators.get('atr', 'N/A')}"""
+
+        self.send_message(message)

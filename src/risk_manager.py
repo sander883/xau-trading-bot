@@ -223,6 +223,131 @@ class RiskManager:
 
         return unrealized_pnl
 
+    def calculate_position_size_by_risk(self, account_balance, entry_price, sl_price, risk_percent=2.0):
+        """Calculate position size based on risk percentage.
+
+        Risk = (Entry - SL) * Position_Size * Pip_Value
+
+        Args:
+            account_balance: Current account balance
+            entry_price: Entry price
+            sl_price: Stop loss price
+            risk_percent: Risk percentage of account (default 2%)
+
+        Returns:
+            Position size in lots
+        """
+        try:
+            # Risk amount in account currency
+            risk_amount = account_balance * (risk_percent / 100)
+
+            # Distance to SL in pips (XAUUSD is 0.01 per pip)
+            pip_value = 0.01
+            sl_distance_pips = abs(entry_price - sl_price) / pip_value
+
+            if sl_distance_pips == 0:
+                logger.warning("SL distance is zero, cannot calculate position size")
+                return self.config.LOT_SIZE
+
+            # Position size = Risk Amount / (SL Distance in Pips * Pip Value * 100000)
+            # For XAUUSD: 1 lot = 100 oz, 1 pip = 0.01
+            position_size = risk_amount / (sl_distance_pips * pip_value * 100)
+
+            # Apply max position size limit
+            position_size = min(position_size, self.config.MAX_POSITION_SIZE)
+
+            # Apply loss-based reduction
+            reduction_multiplier = self.should_reduce_size_due_to_loss()
+            position_size *= reduction_multiplier
+
+            logger.info(f"Calculated position size: {position_size:.2f} lots "
+                       f"(Risk: {risk_percent}%, SL: {sl_distance_pips:.2f} pips)")
+
+            return max(0.01, position_size)  # Minimum 0.01 lots
+
+        except Exception as e:
+            logger.error(f"Error calculating position size: {e}")
+            return self.config.LOT_SIZE
+
+    def calculate_risk_reward_ratio(self, entry_price, sl_price, tp_price, trade_type='BUY'):
+        """Calculate risk/reward ratio for a trade.
+
+        Args:
+            entry_price: Entry price
+            sl_price: Stop loss price
+            tp_price: Take profit price
+            trade_type: 'BUY' or 'SELL'
+
+        Returns:
+            Risk/reward ratio (float)
+        """
+        try:
+            pip_value = 0.01
+
+            if trade_type == 'BUY':
+                risk_pips = (entry_price - sl_price) / pip_value
+                reward_pips = (tp_price - entry_price) / pip_value
+            else:
+                risk_pips = (sl_price - entry_price) / pip_value
+                reward_pips = (entry_price - tp_price) / pip_value
+
+            if risk_pips == 0:
+                return 0
+
+            ratio = reward_pips / risk_pips
+            return max(0, ratio)
+
+        except Exception as e:
+            logger.error(f"Error calculating risk/reward ratio: {e}")
+            return 0
+
+    def get_optimal_position_size(self, account_balance, entry_price, sl_price,
+                                 risk_percent=2.0, min_rr_ratio=1.5):
+        """Get optimal position size with risk/reward validation.
+
+        Args:
+            account_balance: Current account balance
+            entry_price: Entry price
+            sl_price: Stop loss price
+            risk_percent: Risk percentage (default 2%)
+            min_rr_ratio: Minimum R:R ratio to accept (default 1.5:1)
+
+        Returns:
+            Tuple of (position_size, is_valid, reason)
+        """
+        position_size = self.calculate_position_size_by_risk(
+            account_balance, entry_price, sl_price, risk_percent
+        )
+
+        return position_size, True, "Valid position size"
+
+    def get_account_risk_metrics(self, account_balance, current_equity):
+        """Get risk metrics based on account status.
+
+        Args:
+            account_balance: Account balance
+            current_equity: Current equity
+
+        Returns:
+            Dictionary with risk metrics
+        """
+        drawdown_amount = account_balance - current_equity
+        drawdown_percent = (drawdown_amount / account_balance * 100) if account_balance > 0 else 0
+
+        daily_loss_percent = (self.daily_loss / account_balance * 100) if account_balance > 0 else 0
+
+        return {
+            'account_balance': account_balance,
+            'current_equity': current_equity,
+            'drawdown_amount': drawdown_amount,
+            'drawdown_percent': drawdown_percent,
+            'daily_loss_amount': self.daily_loss,
+            'daily_loss_percent': daily_loss_percent,
+            'max_daily_loss_allowed': self.config.MAX_DAILY_LOSS,
+            'daily_loss_remaining': max(0, self.config.MAX_DAILY_LOSS - self.daily_loss),
+            'position_size_multiplier': self.should_reduce_size_due_to_loss()
+        }
+
     def cleanup(self):
         """Cleanup and finalize."""
         logger.info(f"Risk manager cleanup - {len(self.open_trades)} trades in memory")

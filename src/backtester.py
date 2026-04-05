@@ -2,6 +2,7 @@ import logging
 import numpy as np
 import pandas as pd
 from datetime import datetime
+from typing import Dict
 
 logger = logging.getLogger(__name__)
 
@@ -227,3 +228,329 @@ class Backtester:
                 logger.info(f"Backtest report exported to {filepath}")
         except Exception as e:
             logger.error(f"Error exporting backtest report: {e}")
+
+    def generate_detailed_report(self) -> Dict:
+        """Generate comprehensive backtest report.
+
+        Returns:
+            Dictionary with detailed backtest metrics
+        """
+        if not self.trades:
+            return {}
+
+        df_trades = pd.DataFrame(self.trades)
+
+        # Basic metrics
+        total_trades = len(self.trades)
+        winning_trades = len([t for t in self.trades if t['pnl'] > 0])
+        losing_trades = len([t for t in self.trades if t['pnl'] < 0])
+        breakeven_trades = total_trades - winning_trades - losing_trades
+
+        # P&L metrics
+        total_profit = sum([t['pnl'] for t in self.trades if t['pnl'] > 0])
+        total_loss = sum([t['pnl'] for t in self.trades if t['pnl'] < 0])
+        net_profit = total_profit + total_loss
+
+        # Win metrics
+        win_rate = (winning_trades / total_trades * 100) if total_trades > 0 else 0
+        avg_win = (total_profit / winning_trades) if winning_trades > 0 else 0
+        avg_loss = (total_loss / losing_trades) if losing_trades > 0 else 0
+        profit_factor = abs(total_profit / total_loss) if total_loss != 0 else 0
+
+        # Streak analysis
+        current_streak = 0
+        max_win_streak = 0
+        max_loss_streak = 0
+
+        for trade in self.trades:
+            if trade['pnl'] > 0:
+                current_streak += 1
+                max_win_streak = max(max_win_streak, current_streak)
+            elif trade['pnl'] < 0:
+                current_streak -= 1
+                max_loss_streak = max(max_loss_streak, abs(current_streak))
+            else:
+                current_streak = 0
+
+        # Duration analysis
+        durations = []
+        for trade in self.trades:
+            if 'exit_time' in trade and 'entry_time' in trade:
+                duration = (trade['exit_time'] - trade['entry_time']).total_seconds() / 3600
+                durations.append(duration)
+
+        avg_trade_duration = np.mean(durations) if durations else 0
+        max_trade_duration = max(durations) if durations else 0
+
+        # Return metrics
+        roi = ((self.capital - self.initial_capital) / self.initial_capital * 100) if self.initial_capital > 0 else 0
+        max_dd = self._calculate_max_drawdown()
+        sharpe = self._calculate_sharpe_ratio()
+
+        # Recovery metrics
+        trades_by_type = {}
+        for trade in self.trades:
+            trade_type = trade.get('type', 'UNKNOWN')
+            if trade_type not in trades_by_type:
+                trades_by_type[trade_type] = {'count': 0, 'wins': 0, 'total_pnl': 0}
+            trades_by_type[trade_type]['count'] += 1
+            if trade['pnl'] > 0:
+                trades_by_type[trade_type]['wins'] += 1
+            trades_by_type[trade_type]['total_pnl'] += trade['pnl']
+
+        return {
+            'summary': {
+                'total_trades': total_trades,
+                'winning_trades': winning_trades,
+                'losing_trades': losing_trades,
+                'breakeven_trades': breakeven_trades,
+                'win_rate': win_rate,
+            },
+            'profitability': {
+                'total_profit': total_profit,
+                'total_loss': total_loss,
+                'net_profit': net_profit,
+                'avg_win': avg_win,
+                'avg_loss': avg_loss,
+                'profit_factor': profit_factor,
+            },
+            'streaks': {
+                'max_win_streak': max_win_streak,
+                'max_loss_streak': max_loss_streak,
+            },
+            'performance': {
+                'roi': roi,
+                'max_drawdown': max_dd,
+                'sharpe_ratio': sharpe,
+                'avg_trade_duration_hours': avg_trade_duration,
+                'max_trade_duration_hours': max_trade_duration,
+            },
+            'by_type': trades_by_type,
+            'timestamp': datetime.now()
+        }
+
+    def export_html_report(self, filename='backtest_report.html'):
+        """Export comprehensive HTML report.
+
+        Args:
+            filename: Output filename
+        """
+        try:
+            report = self.generate_detailed_report()
+            if not report:
+                logger.warning("No trades to report")
+                return
+
+            html_content = self._generate_html_report(report)
+            filepath = self.config.DATA_DIR / filename
+
+            with open(filepath, 'w') as f:
+                f.write(html_content)
+
+            logger.info(f"HTML report exported to {filepath}")
+
+        except Exception as e:
+            logger.error(f"Error exporting HTML report: {e}")
+
+    def _generate_html_report(self, report) -> str:
+        """Generate HTML report content.
+
+        Args:
+            report: Report dictionary from generate_detailed_report()
+
+        Returns:
+            HTML string
+        """
+        summary = report.get('summary', {})
+        profit = report.get('profitability', {})
+        perf = report.get('performance', {})
+        streaks = report.get('streaks', {})
+
+        html = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Backtest Report</title>
+            <style>
+                body {{ font-family: Arial, sans-serif; margin: 20px; }}
+                h1 {{ color: #333; }}
+                h2 {{ color: #666; border-bottom: 2px solid #ddd; padding-bottom: 10px; }}
+                table {{ border-collapse: collapse; width: 100%; margin: 20px 0; }}
+                th, td {{ border: 1px solid #ddd; padding: 12px; text-align: left; }}
+                th {{ background-color: #f0f0f0; }}
+                .positive {{ color: green; font-weight: bold; }}
+                .negative {{ color: red; font-weight: bold; }}
+                .metric-box {{ background: #f9f9f9; padding: 15px; margin: 10px 0; border-left: 4px solid #4CAF50; }}
+            </style>
+        </head>
+        <body>
+            <h1>Trading Backtest Report</h1>
+            <p>Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
+
+            <h2>Summary Statistics</h2>
+            <table>
+                <tr>
+                    <td>Total Trades</td>
+                    <td>{summary.get('total_trades', 0)}</td>
+                </tr>
+                <tr>
+                    <td>Winning Trades</td>
+                    <td class="positive">{summary.get('winning_trades', 0)}</td>
+                </tr>
+                <tr>
+                    <td>Losing Trades</td>
+                    <td class="negative">{summary.get('losing_trades', 0)}</td>
+                </tr>
+                <tr>
+                    <td>Win Rate</td>
+                    <td>{summary.get('win_rate', 0):.1f}%</td>
+                </tr>
+            </table>
+
+            <h2>Profitability</h2>
+            <table>
+                <tr>
+                    <td>Total Profit</td>
+                    <td class="positive">${profit.get('total_profit', 0):,.2f}</td>
+                </tr>
+                <tr>
+                    <td>Total Loss</td>
+                    <td class="negative">${profit.get('total_loss', 0):,.2f}</td>
+                </tr>
+                <tr>
+                    <td>Net Profit</td>
+                    <td class="{'positive' if profit.get('net_profit', 0) >= 0 else 'negative'}">${profit.get('net_profit', 0):,.2f}</td>
+                </tr>
+                <tr>
+                    <td>Average Win</td>
+                    <td class="positive">${profit.get('avg_win', 0):,.2f}</td>
+                </tr>
+                <tr>
+                    <td>Average Loss</td>
+                    <td class="negative">${profit.get('avg_loss', 0):,.2f}</td>
+                </tr>
+                <tr>
+                    <td>Profit Factor</td>
+                    <td>{profit.get('profit_factor', 0):.2f}</td>
+                </tr>
+            </table>
+
+            <h2>Performance Metrics</h2>
+            <table>
+                <tr>
+                    <td>ROI</td>
+                    <td class="{'positive' if perf.get('roi', 0) >= 0 else 'negative'}">{perf.get('roi', 0):.2f}%</td>
+                </tr>
+                <tr>
+                    <td>Max Drawdown</td>
+                    <td class="negative">{perf.get('max_drawdown', 0):.2f}%</td>
+                </tr>
+                <tr>
+                    <td>Sharpe Ratio</td>
+                    <td>{perf.get('sharpe_ratio', 0):.2f}</td>
+                </tr>
+                <tr>
+                    <td>Avg Trade Duration</td>
+                    <td>{perf.get('avg_trade_duration_hours', 0):.1f} hours</td>
+                </tr>
+                <tr>
+                    <td>Max Trade Duration</td>
+                    <td>{perf.get('max_trade_duration_hours', 0):.1f} hours</td>
+                </tr>
+            </table>
+
+            <h2>Trade Streaks</h2>
+            <table>
+                <tr>
+                    <td>Max Win Streak</td>
+                    <td class="positive">{streaks.get('max_win_streak', 0)}</td>
+                </tr>
+                <tr>
+                    <td>Max Loss Streak</td>
+                    <td class="negative">{streaks.get('max_loss_streak', 0)}</td>
+                </tr>
+            </table>
+
+            <h2>All Trades</h2>
+            <table>
+                <tr>
+                    <th>ID</th>
+                    <th>Type</th>
+                    <th>Entry</th>
+                    <th>Exit</th>
+                    <th>P&L</th>
+                    <th>Reason</th>
+                </tr>
+        """
+
+        for trade in self.trades[:100]:  # Limit to first 100 trades for HTML readability
+            pnl_class = 'positive' if trade['pnl'] > 0 else 'negative'
+            html += f"""
+                <tr>
+                    <td>{trade['id']}</td>
+                    <td>{trade['type']}</td>
+                    <td>{trade['entry_price']:.2f}</td>
+                    <td>{trade['exit_price']:.2f}</td>
+                    <td class="{pnl_class}">${trade['pnl']:,.2f}</td>
+                    <td>{trade.get('exit_reason', 'N/A')}</td>
+                </tr>
+            """
+
+        html += """
+            </table>
+        </body>
+        </html>
+        """
+
+        return html
+
+    def export_summary_text(self, filename='backtest_summary.txt'):
+        """Export summary report as text file.
+
+        Args:
+            filename: Output filename
+        """
+        try:
+            report = self.generate_detailed_report()
+            if not report:
+                logger.warning("No trades to report")
+                return
+
+            filepath = self.config.DATA_DIR / filename
+
+            with open(filepath, 'w') as f:
+                f.write("="*60 + "\n")
+                f.write("BACKTEST REPORT\n")
+                f.write("="*60 + "\n\n")
+
+                f.write(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+                f.write(f"Initial Capital: ${self.initial_capital:,.2f}\n")
+                f.write(f"Final Capital: ${self.capital:,.2f}\n\n")
+
+                summary = report.get('summary', {})
+                f.write("SUMMARY\n")
+                f.write("-"*60 + "\n")
+                f.write(f"Total Trades:     {summary.get('total_trades', 0)}\n")
+                f.write(f"Winning Trades:   {summary.get('winning_trades', 0)}\n")
+                f.write(f"Losing Trades:    {summary.get('losing_trades', 0)}\n")
+                f.write(f"Win Rate:         {summary.get('win_rate', 0):.1f}%\n\n")
+
+                profit = report.get('profitability', {})
+                f.write("PROFITABILITY\n")
+                f.write("-"*60 + "\n")
+                f.write(f"Total Profit:     ${profit.get('total_profit', 0):,.2f}\n")
+                f.write(f"Total Loss:       ${profit.get('total_loss', 0):,.2f}\n")
+                f.write(f"Net Profit:       ${profit.get('net_profit', 0):,.2f}\n")
+                f.write(f"Profit Factor:    {profit.get('profit_factor', 0):.2f}\n\n")
+
+                perf = report.get('performance', {})
+                f.write("PERFORMANCE\n")
+                f.write("-"*60 + "\n")
+                f.write(f"ROI:              {perf.get('roi', 0):.2f}%\n")
+                f.write(f"Max Drawdown:     {perf.get('max_drawdown', 0):.2f}%\n")
+                f.write(f"Sharpe Ratio:     {perf.get('sharpe_ratio', 0):.2f}\n\n")
+
+            logger.info(f"Summary report exported to {filepath}")
+
+        except Exception as e:
+            logger.error(f"Error exporting summary report: {e}")
