@@ -176,11 +176,15 @@ def initialize_components():
 
         state['data_fetcher'] = DataFetcher(Config)
         if not state['data_fetcher'].connected:
-            logger.error("✗ Failed to connect to MetaTrader5")
-            logger.info("  Make sure MetaTrader5 is running and logged in")
-            return None
+            logger.warning("⚠ MetaTrader5 not connected - running in DEMO MODE")
+            logger.info("  This is normal if:")
+            logger.info("  - Running on non-Windows platform (MT5 is Windows-only)")
+            logger.info("  - XAUUSD market is closed (Fri 21:00 UTC - Sun 21:00 UTC)")
+            logger.info("  - MT5 terminal not running")
+            logger.info("")
+            logger.info("  Bot will continue in demo mode")
 
-        logger.info("✓ DataFetcher initialized")
+        logger.info("✓ DataFetcher initialized (MT5 connection: %s)" % ("Connected" if state['data_fetcher'].connected else "Demo Mode"))
         components['data_fetcher'] = state['data_fetcher']
 
         # 2. ML Model
@@ -273,6 +277,13 @@ def train_or_load_model(ml_model, data_fetcher):
     logger.info("=" * 70)
 
     try:
+        # Check if XAUUSD market is open for live training
+        from src.market_session_filter import MarketSessionFilter
+        session_filter = MarketSessionFilter()
+        is_market_open, market_status, hours_until = session_filter.is_xauusd_market_open()
+
+        logger.info(f"Market Status: {market_status}")
+
         # Try to load existing model
         models_dir = Config.MODELS_DIR
         if models_dir.exists():
@@ -284,9 +295,19 @@ def train_or_load_model(ml_model, data_fetcher):
 
                 if ml_model.load_model(latest_model):
                     logger.info("✓ Model loaded successfully")
+                    if not is_market_open:
+                        logger.info(f"⚠ Market closed, using cached model for prediction only")
                     return True
 
-        # Train new model
+        # Skip training if market is closed
+        if not is_market_open:
+            logger.warning("⚠ XAUUSD market is CLOSED")
+            logger.warning(f"  {market_status}")
+            logger.warning("  Skipping model training (no live data available)")
+            logger.warning(f"  Bot will run in demo mode or wait for market to open")
+            return True  # Return True to allow bot to continue in demo mode
+
+        # Train new model only when market is open
         logger.info("Training new model...")
         logger.info("Fetching historical data...")
 
@@ -318,8 +339,20 @@ def train_or_load_model(ml_model, data_fetcher):
         logger.info("Preparing data for training...")
         X, y = ml_model.prepare_data(ta.df)
 
-        if X is None:
-            logger.error("✗ Failed to prepare data")
+        if X is None or len(X) == 0:
+            logger.error("✗ Failed to prepare data (no samples)")
+            logger.warning("  This may happen if:")
+            logger.warning("  - Market is closed (XAUUSD closes Friday 21:00 UTC - Sunday 21:00 UTC)")
+            logger.warning("  - Historical data is incomplete")
+            logger.warning("  - Technical indicators returned NaN values")
+
+            # Check if we can use cached model instead
+            if models_dir.exists():
+                models = sorted(models_dir.glob('model_*.pkl'), reverse=True)
+                if models:
+                    logger.warning("  Falling back to cached model...")
+                    return ml_model.load_model(models[0])
+
             return False
 
         logger.info(f"✓ Data prepared: {X.shape[0]} samples")

@@ -307,4 +307,49 @@ class MarketSessionFilter:
             }
         }
 
+    def is_xauusd_market_open(self):
+        """Check if XAUUSD market is currently open.
+
+        XAUUSD trades 24/5:
+        - Opens: Sunday 21:00 UTC
+        - Closes: Friday 21:00 UTC
+
+        Returns:
+            Tuple (is_open: bool, status: str, hours_until_open: float or None)
+        """
+        try:
+            now = datetime.now(pytz.UTC)
+            weekday = now.weekday()  # Monday=0, Sunday=6
+            hour = now.hour
+            minute = now.minute
+
+            # Convert to minutes from Sunday 21:00 UTC
+            # Sunday = 6, Monday = 0, ..., Friday = 4
+
+            # Friday 21:00 UTC to Sunday 21:00 UTC = CLOSED
+            if weekday == 4 and hour >= 21:  # Friday 21:00 onwards
+                hours_until = (24 - hour) + (2 * 24) + (21 - 0)  # Until Sunday 21:00
+                status = f"Market CLOSED - Will open in {hours_until:.1f} hours (Sunday 21:00 UTC)"
+                return False, status, hours_until
+
+            if weekday == 5:  # Saturday (all day)
+                hours_until = (24 - hour) + 24 + (21 - 0)  # Until Sunday 21:00
+                status = f"Market CLOSED - Will open in {hours_until:.1f} hours (Sunday 21:00 UTC)"
+                return False, status, hours_until
+
+            if weekday == 6 and hour < 21:  # Sunday before 21:00
+                hours_until = 21 - hour
+                minutes_until = 60 - minute if minute > 0 else 0
+                total_hours = hours_until + (minutes_until / 60.0)
+                status = f"Market CLOSED - Will open in {total_hours:.1f} hours (Sunday 21:00 UTC)"
+                return False, status, total_hours
+
+            # All other times = OPEN
+            status = "Market OPEN"
+            return True, status, None
+
+        except Exception as e:
+            logger.error(f"Error checking XAUUSD market status: {e}")
+            return False, f"Error checking market status: {e}", None
+
         return volatility_map.get(session, volatility_map['ASIA'])
