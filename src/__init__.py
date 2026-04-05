@@ -2,6 +2,8 @@ from .data_fetcher import DataFetcher
 from .technical_analysis import TechnicalAnalysis
 from .ml_model import MLModel
 from .advanced_ml_model import AdvancedMLModel
+from .professional_xgboost_model import ProfessionalXGBoostModel, TradeSignal, MarketCondition
+from .professional_trading_system import ProfessionalTradingSystem, TradeType
 from .risk_manager import RiskManager
 from .trading_engine import TradingEngine
 from .telegram_notifier import TelegramNotifier
@@ -26,6 +28,11 @@ __all__ = [
     'TechnicalAnalysis',
     'MLModel',
     'AdvancedMLModel',
+    'ProfessionalXGBoostModel',
+    'ProfessionalTradingSystem',
+    'TradeSignal',
+    'MarketCondition',
+    'TradeType',
     'RiskManager',
     'TradingEngine',
     'TelegramNotifier',
