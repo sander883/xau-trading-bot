@@ -21,7 +21,10 @@ def setup_logging(config):
     """
     try:
         # Create logs directory if needed
-        config.setup_directories()
+        if hasattr(config, 'setup_directories'):
+            config.setup_directories()
+        elif hasattr(config, 'LOGS_DIR'):
+            config.LOGS_DIR.mkdir(parents=True, exist_ok=True)
 
         # Create logger
         logger = logging.getLogger()
@@ -31,7 +34,13 @@ def setup_logging(config):
         logger.handlers = []
 
         # File handler with rotation
-        log_file = config.LOGS_DIR / config.LOG_FILE_PATH.split('/')[-1]
+        if hasattr(config, 'LOGS_DIR'):
+            log_dir = config.LOGS_DIR
+        else:
+            log_dir = Path('logs')
+            log_dir.mkdir(parents=True, exist_ok=True)
+
+        log_file = log_dir / config.LOG_FILE_PATH.split('/')[-1]
         file_handler = logging.handlers.RotatingFileHandler(
             log_file,
             maxBytes=10*1024*1024,  # 10MB
