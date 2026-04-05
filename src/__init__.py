@@ -21,6 +21,8 @@ from .spread_checker import SpreadChecker
 from .xauusd_volatility_filter import XAUUSDVolatilityFilter
 from .xauusd_stop_system import DynamicStopLossCalculator, TrailingStopSystem
 from .xauusd_optimizer import XAUUSDOptimizer
+from .model_manager import ModelManager, ModelPerformance, PredictionLogger, ModelPreprocessor, RetariningSchedule
+from .retraining_scheduler import RetrainingScheduler, RetrainingStatus
 from .logger import setup_logging
 
 __all__ = [
@@ -51,5 +53,12 @@ __all__ = [
     'DynamicStopLossCalculator',
     'TrailingStopSystem',
     'XAUUSDOptimizer',
+    'ModelManager',
+    'ModelPerformance',
+    'PredictionLogger',
+    'ModelPreprocessor',
+    'RetariningSchedule',
+    'RetrainingScheduler',
+    'RetrainingStatus',
     'setup_logging',
 ]
