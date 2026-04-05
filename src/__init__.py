@@ -8,6 +8,7 @@ from .risk_manager import RiskManager
 from .trading_engine import TradingEngine
 from .telegram_notifier import TelegramNotifier
 from .backtester import Backtester
+from .advanced_backtester import AdvancedBacktester, PerformanceMetrics, BacktestVisualizer, ParameterOptimizer
 from .multi_timeframe_analyzer import MultiTimeframeAnalyzer
 from .combined_strategy import CombinedStrategy
 from .advanced_trading_bot import AdvancedTradingBot
@@ -39,6 +40,10 @@ __all__ = [
     'TradingEngine',
     'TelegramNotifier',
     'Backtester',
+    'AdvancedBacktester',
+    'PerformanceMetrics',
+    'BacktestVisualizer',
+    'ParameterOptimizer',
     'MultiTimeframeAnalyzer',
     'CombinedStrategy',
     'AdvancedTradingBot',
