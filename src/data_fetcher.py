@@ -184,7 +184,7 @@ class DataFetcher:
                 '4H': '4h',
                 '1D': 'd'
             }
-            freq = freq_map.get(timeframe, 'H')
+            freq = freq_map.get(timeframe, 'h')
 
             # Generate date range
             dates = pd.date_range(start=start_date, end=end_date, freq=freq)
