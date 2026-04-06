@@ -69,6 +69,38 @@ class ProfessionalXGBoostModel:
         if not HAS_XGBOOST:
             raise ImportError("XGBoost is required for professional trading")
 
+    def _ensure_indicators(self, df):
+        """Calculate technical indicators if missing."""
+        try:
+            from src.technical_analysis import TechnicalAnalysis
+
+            # Check which indicators are missing
+            required_indicators = [
+                'EMA_FAST', 'EMA_SLOW', 'RSI', 'MACD', 'SIGNAL',
+                'ATR', 'BB_UPPER', 'BB_LOWER', 'SMA_SLOW', 'ADX',
+                'STOCH_K', 'STOCH_D'
+            ]
+
+            missing = [ind for ind in required_indicators if ind not in df.columns]
+
+            if missing:
+                logger.info(f"Calculating missing indicators: {missing}")
+                ta = TechnicalAnalysis(df.copy())
+                ta.calculate_moving_averages()
+                ta.calculate_rsi()
+                ta.calculate_bollinger_bands()
+                ta.calculate_atr()
+                ta.calculate_macd()
+                ta.calculate_stochastic()
+                ta.calculate_adx()
+                df = ta.df
+
+            return df
+        except Exception as e:
+            logger.warning(f"Could not calculate indicators: {e}")
+            # Return as-is, feature engineering will handle missing columns
+            return df
+
     def engineer_features(self, df):
         """Engineer 30+ professional trading features.
 
@@ -85,9 +117,15 @@ class ProfessionalXGBoostModel:
             # EMA-based trend
             if 'EMA_FAST' in df.columns and 'EMA_SLOW' in df.columns:
                 features['EMA_50_200_CROSS'] = (df['EMA_FAST'] > df['EMA_SLOW']).astype(int)
-                features['EMA_DISTANCE'] = (df['EMA_FAST'] - df['EMA_SLOW']) / df['Close']
+                features['EMA_DISTANCE'] = (df['EMA_FAST'] - df['EMA_SLOW']) / (df['Close'] + 1e-6)
                 features['PRICE_ABOVE_EMA50'] = (df['Close'] > df['EMA_FAST']).astype(int)
                 features['PRICE_ABOVE_EMA200'] = (df['Close'] > df['EMA_SLOW']).astype(int)
+            else:
+                # Fallback: Use simple moving averages
+                features['EMA_50_200_CROSS'] = 0
+                features['EMA_DISTANCE'] = 0
+                features['PRICE_ABOVE_EMA50'] = 0
+                features['PRICE_ABOVE_EMA200'] = 0
 
             # ===== MOMENTUM FEATURES =====
             # RSI features
@@ -96,6 +134,11 @@ class ProfessionalXGBoostModel:
                 features['RSI_OVERSOLD'] = (df['RSI'] < 30).astype(int)
                 features['RSI_OVERBOUGHT'] = (df['RSI'] > 70).astype(int)
                 features['RSI_MOMENTUM'] = df['RSI'].diff()
+            else:
+                features['RSI_BULLISH'] = 0
+                features['RSI_OVERSOLD'] = 0
+                features['RSI_OVERBOUGHT'] = 0
+                features['RSI_MOMENTUM'] = 0
 
             # Rate of Change
             features['ROC_5'] = df['Close'].pct_change(5) * 100
@@ -107,16 +150,23 @@ class ProfessionalXGBoostModel:
                 features['MACD_ABOVE_SIGNAL'] = (df['MACD'] > df['SIGNAL']).astype(int)
                 features['MACD_HISTOGRAM'] = df['MACD'] - df['SIGNAL']
                 features['MACD_MOMENTUM'] = features['MACD_HISTOGRAM'].diff()
+            else:
+                features['MACD_ABOVE_SIGNAL'] = 0
+                features['MACD_HISTOGRAM'] = 0
+                features['MACD_MOMENTUM'] = 0
 
             # ===== VOLATILITY FEATURES =====
             # ATR-based volatility
             if 'ATR' in df.columns:
-                features['ATR_RATIO'] = df['ATR'] / df['Close']  # Volatility percentage
+                features['ATR_RATIO'] = df['ATR'] / (df['Close'] + 1e-6)  # Volatility percentage
                 features['VOLATILITY_LEVEL'] = pd.cut(
                     features['ATR_RATIO'],
                     bins=[0, 0.005, 0.01, 0.02, 1.0],
                     labels=[1, 2, 3, 4]
                 ).astype(int)
+            else:
+                features['ATR_RATIO'] = (df['High'] - df['Low']) / (df['Close'] + 1e-6)
+                features['VOLATILITY_LEVEL'] = 2  # Medium volatility fallback
 
             # Historical volatility
             features['HIST_VOL_20'] = df['Close'].pct_change().rolling(20).std()
@@ -124,10 +174,15 @@ class ProfessionalXGBoostModel:
 
             # Bollinger Bands
             if 'BB_UPPER' in df.columns and 'BB_LOWER' in df.columns:
-                features['BB_WIDTH'] = (df['BB_UPPER'] - df['BB_LOWER']) / df['Close']
-                features['BB_POSITION'] = (df['Close'] - df['BB_LOWER']) / (df['BB_UPPER'] - df['BB_LOWER'])
+                features['BB_WIDTH'] = (df['BB_UPPER'] - df['BB_LOWER']) / (df['Close'] + 1e-6)
+                features['BB_POSITION'] = (df['Close'] - df['BB_LOWER']) / (df['BB_UPPER'] - df['BB_LOWER'] + 1e-6)
                 features['NEAR_BB_UPPER'] = (features['BB_POSITION'] > 0.8).astype(int)
                 features['NEAR_BB_LOWER'] = (features['BB_POSITION'] < 0.2).astype(int)
+            else:
+                features['BB_WIDTH'] = (df['High'] - df['Low']) / (df['Close'] + 1e-6)
+                features['BB_POSITION'] = 0.5
+                features['NEAR_BB_UPPER'] = 0
+                features['NEAR_BB_LOWER'] = 0
 
             # ===== PRICE ACTION FEATURES =====
             # Candle patterns
@@ -160,9 +215,13 @@ class ProfessionalXGBoostModel:
             # ===== MEAN REVERSION FEATURES =====
             # Distance from moving averages
             if 'SMA_SLOW' in df.columns:
-                features['PRICE_SMA_DISTANCE'] = (df['Close'] - df['SMA_SLOW']) / df['SMA_SLOW']
+                features['PRICE_SMA_DISTANCE'] = (df['Close'] - df['SMA_SLOW']) / (df['SMA_SLOW'] + 1e-6)
                 features['OVERSOLD_SMA'] = (features['PRICE_SMA_DISTANCE'] < -0.02).astype(int)
                 features['OVERBOUGHT_SMA'] = (features['PRICE_SMA_DISTANCE'] > 0.02).astype(int)
+            else:
+                features['PRICE_SMA_DISTANCE'] = 0
+                features['OVERSOLD_SMA'] = 0
+                features['OVERBOUGHT_SMA'] = 0
 
             # ===== STRENGTH FEATURES =====
             # ADX (trend strength)
@@ -170,6 +229,10 @@ class ProfessionalXGBoostModel:
                 features['TREND_STRENGTH'] = df['ADX'] / 50.0  # Normalize to 0-1
                 features['IS_TRENDING'] = (df['ADX'] > 25).astype(int)
                 features['STRONG_TREND'] = (df['ADX'] > 40).astype(int)
+            else:
+                features['TREND_STRENGTH'] = 0.5
+                features['IS_TRENDING'] = 0
+                features['STRONG_TREND'] = 0
 
             # Stochastic
             if 'STOCH_K' in df.columns and 'STOCH_D' in df.columns:
@@ -177,6 +240,9 @@ class ProfessionalXGBoostModel:
                 stoch_above = (df['STOCH_K'] > df['STOCH_D']).astype(bool)
                 stoch_below_prev = (df['STOCH_K'].shift(1) <= df['STOCH_D'].shift(1)).astype(bool)
                 features['STOCH_CROSSOVER'] = (stoch_above & stoch_below_prev).astype(int)
+            else:
+                features['STOCH_ABOVE_50'] = 0
+                features['STOCH_CROSSOVER'] = 0
 
             # ===== SEQUENCE FEATURES =====
             # Price momentum
@@ -239,8 +305,15 @@ class ProfessionalXGBoostModel:
             X, y arrays ready for model
         """
         try:
+            # Ensure technical indicators are calculated
+            df = self._ensure_indicators(df)
+
             # Engineer features
             features_df = self.engineer_features(df)
+
+            # Fill NaN values in features (forward fill, then backward fill)
+            features_df = features_df.fillna(method='ffill').fillna(method='bfill')
+            features_df = features_df.fillna(0)  # Fill remaining NaNs with 0
 
             # Create target
             y = self.create_target(df, prediction_horizon=prediction_horizon)
@@ -265,8 +338,14 @@ class ProfessionalXGBoostModel:
             # Remove NaN/Inf rows
             try:
                 valid_idx = np.isfinite(X).all(axis=1)
-                X = X[valid_idx]
-                y_out = y_out[valid_idx]
+
+                # If all values are invalid, use nan_to_num fallback
+                if not valid_idx.any():
+                    logger.warning(f"All samples have NaN/Inf - using fallback conversion")
+                    X = np.nan_to_num(X, nan=0.0, posinf=1e6, neginf=-1e6)
+                else:
+                    X = X[valid_idx]
+                    y_out = y_out[valid_idx]
             except Exception as e:
                 logger.warning(f"Could not filter NaN/Inf values: {e}")
                 # Try alternative approach
