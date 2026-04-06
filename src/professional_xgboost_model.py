@@ -69,12 +69,12 @@ class ProfessionalXGBoostModel:
         if not HAS_XGBOOST:
             raise ImportError("XGBoost is required for professional trading")
 
-    def _safe_astype_int(self, series):
-        """Safely convert series to int, handling NaN values."""
+    def _safe_astype_float(self, series):
+        """Safely convert series to float, handling NaN values."""
         try:
-            return series.fillna(0).astype('Int64').astype(int)
+            return series.fillna(0).astype(float)
         except:
-            return series.fillna(0).astype(int)
+            return series.fillna(0).astype(float)
 
     def _ensure_indicators(self, df):
         """Calculate technical indicators if missing."""
@@ -93,11 +93,10 @@ class ProfessionalXGBoostModel:
             if missing:
                 logger.info(f"Calculating missing indicators: {missing}")
                 ta = TechnicalAnalysis(df.copy())
-                ta.calculate_moving_averages()
+                ta.calculate_moving_averages()  # Includes MACD and SIGNAL
                 ta.calculate_rsi()
                 ta.calculate_bollinger_bands()
                 ta.calculate_atr()
-                ta.calculate_macd()
                 ta.calculate_stochastic()
                 ta.calculate_adx()
                 df = ta.df
@@ -121,15 +120,15 @@ class ProfessionalXGBoostModel:
             features = df.copy()
 
             # Fill any NaN values first to prevent conversion errors
-            features = features.fillna(method='ffill').fillna(method='bfill')
+            features = features.ffill().bfill()
             features = features.fillna(0)
 
             # ===== TREND FEATURES =====
             # EMA-based trend
             if 'EMA_FAST' in df.columns and 'EMA_SLOW' in df.columns:
-                features['EMA_50_200_CROSS'] = self._safe_astype_int((df['EMA_FAST'] > df['EMA_SLOW']))
-                features['PRICE_ABOVE_EMA50'] = self._safe_astype_int((df['Close'] > df['EMA_FAST']))
-                features['PRICE_ABOVE_EMA200'] = self._safe_astype_int((df['Close'] > df['EMA_SLOW']))
+                features['EMA_50_200_CROSS'] = self._safe_astype_float((df['EMA_FAST'] > df['EMA_SLOW']))
+                features['PRICE_ABOVE_EMA50'] = self._safe_astype_float((df['Close'] > df['EMA_FAST']))
+                features['PRICE_ABOVE_EMA200'] = self._safe_astype_float((df['Close'] > df['EMA_SLOW']))
                 features['EMA_DISTANCE'] = (df['EMA_FAST'] - df['EMA_SLOW']) / (df['Close'] + 1e-6)
             else:
                 # Fallback: Use simple moving averages
@@ -335,7 +334,7 @@ class ProfessionalXGBoostModel:
             features_df = self.engineer_features(df)
 
             # Fill NaN values in features (forward fill, then backward fill)
-            features_df = features_df.fillna(method='ffill').fillna(method='bfill')
+            features_df = features_df.ffill().bfill()
             features_df = features_df.fillna(0)  # Fill remaining NaNs with 0
 
             # Create target
