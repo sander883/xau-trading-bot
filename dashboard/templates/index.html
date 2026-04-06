@@ -1,0 +1,263 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<!-- ===================================================================
+     KEY METRICS CARDS
+     =================================================================== -->
+<section class="metrics-section">
+    <h2>Account Overview</h2>
+    <div class="metrics-grid">
+        <!-- Balance Card -->
+        <div class="metric-card">
+            <div class="metric-header">
+                <span class="metric-label">Balance</span>
+                <span class="metric-icon">💰</span>
+            </div>
+            <div class="metric-value" id="metric-balance">$0.00</div>
+            <div class="metric-subtitle">Equity: <span id="metric-equity">$0.00</span></div>
+            <div class="metric-change" id="metric-pnl-display">+$0.00 (0.00%)</div>
+        </div>
+
+        <!-- Today's P&L Card -->
+        <div class="metric-card">
+            <div class="metric-header">
+                <span class="metric-label">Today P&L</span>
+                <span class="metric-icon">📈</span>
+            </div>
+            <div class="metric-value" id="metric-pnl">$0.00</div>
+            <div class="metric-subtitle">Return: <span id="metric-pnl-pct">0.00%</span></div>
+            <div class="metric-change" id="metric-status">Waiting for data...</div>
+        </div>
+
+        <!-- Open Positions Card -->
+        <div class="metric-card">
+            <div class="metric-header">
+                <span class="metric-label">Open Positions</span>
+                <span class="metric-icon">📍</span>
+            </div>
+            <div class="metric-value" id="metric-open-trades">0</div>
+            <div class="metric-subtitle">Max: <span id="metric-max-trades">3</span></div>
+            <div class="metric-progress">
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progress-trades" style="width: 0%"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Win Rate Card -->
+        <div class="metric-card">
+            <div class="metric-header">
+                <span class="metric-label">Win Rate</span>
+                <span class="metric-icon">🎯</span>
+            </div>
+            <div class="metric-value" id="metric-win-rate">0.0%</div>
+            <div class="metric-subtitle">Trades: <span id="metric-total-trades">0</span></div>
+            <div class="metric-progress">
+                <div class="progress-bar">
+                    <div class="progress-fill success" id="progress-win-rate" style="width: 0%"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Drawdown Card -->
+        <div class="metric-card">
+            <div class="metric-header">
+                <span class="metric-label">Max Drawdown</span>
+                <span class="metric-icon">📉</span>
+            </div>
+            <div class="metric-value danger" id="metric-drawdown">0.00%</div>
+            <div class="metric-subtitle">Risk: <span id="metric-daily-loss">$0.00</span></div>
+            <div class="metric-change">Daily Limit: <span id="metric-daily-limit">$500.00</span></div>
+        </div>
+
+        <!-- Profit Factor Card -->
+        <div class="metric-card">
+            <div class="metric-header">
+                <span class="metric-label">Profit Factor</span>
+                <span class="metric-icon">📊</span>
+            </div>
+            <div class="metric-value" id="metric-profit-factor">0.00</div>
+            <div class="metric-subtitle">Avg Win: <span id="metric-avg-win">$0.00</span></div>
+            <div class="metric-change">Avg Loss: <span id="metric-avg-loss">$0.00</span></div>
+        </div>
+    </div>
+</section>
+
+<!-- ===================================================================
+     CHARTS SECTION
+     =================================================================== -->
+<section class="charts-section">
+    <h2>Performance Charts</h2>
+    <div class="charts-grid">
+        <!-- Equity Curve Chart -->
+        <div class="chart-card">
+            <h3>Equity Curve</h3>
+            <canvas id="equityCurveChart"></canvas>
+        </div>
+
+        <!-- Trade Distribution Chart -->
+        <div class="chart-card">
+            <h3>Trade P&L Distribution</h3>
+            <canvas id="tradeDistributionChart"></canvas>
+        </div>
+
+        <!-- Win/Loss Ratio Chart -->
+        <div class="chart-card">
+            <h3>Win/Loss Ratio</h3>
+            <canvas id="winLossChart"></canvas>
+        </div>
+
+        <!-- Daily Performance Chart -->
+        <div class="chart-card">
+            <h3>Daily Performance</h3>
+            <canvas id="dailyPerformanceChart"></canvas>
+        </div>
+    </div>
+</section>
+
+<!-- ===================================================================
+     OPEN POSITIONS TABLE
+     =================================================================== -->
+<section class="positions-section">
+    <h2>Open Positions</h2>
+    <div class="table-wrapper">
+        <table class="data-table" id="positions-table">
+            <thead>
+                <tr>
+                    <th>Type</th>
+                    <th>Entry Price</th>
+                    <th>Current Price</th>
+                    <th>Entry Time</th>
+                    <th>Duration</th>
+                    <th>Unrealized P&L</th>
+                    <th>Stop Loss</th>
+                    <th>Take Profit</th>
+                </tr>
+            </thead>
+            <tbody id="positions-tbody">
+                <tr class="empty-row">
+                    <td colspan="8" class="text-center">No open positions</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<!-- ===================================================================
+     LATEST SIGNALS
+     =================================================================== -->
+<section class="signals-section">
+    <h2>Latest Trading Signals</h2>
+    <div class="signals-container" id="signals-container">
+        <div class="signal-card empty">
+            <p class="text-muted">No signals yet</p>
+        </div>
+    </div>
+</section>
+
+<!-- ===================================================================
+     RECENT TRADES TABLE
+     =================================================================== -->
+<section class="trades-section">
+    <h2>Recent Trade History</h2>
+    <div class="table-controls">
+        <input type="number" id="trades-limit" min="10" max="500" value="50"
+               placeholder="Limit" class="input-small">
+        <button onclick="reloadTrades()" class="btn btn-secondary">Refresh</button>
+    </div>
+
+    <div class="table-wrapper">
+        <table class="data-table" id="trades-table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Type</th>
+                    <th>Entry Time</th>
+                    <th>Entry Price</th>
+                    <th>Exit Time</th>
+                    <th>Exit Price</th>
+                    <th>P&L</th>
+                    <th>Return %</th>
+                    <th>Duration</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody id="trades-tbody">
+                <tr class="empty-row">
+                    <td colspan="10" class="text-center">No trades yet</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    <div class="pagination">
+        <button onclick="previousTrades()" class="btn btn-small">← Previous</button>
+        <span id="trades-page-info">Page 1</span>
+        <button onclick="nextTrades()" class="btn btn-small">Next →</button>
+    </div>
+</section>
+
+<!-- ===================================================================
+     DEBUG LOGS (optional, collapsible)
+     =================================================================== -->
+<section class="logs-section">
+    <details class="collapsible">
+        <summary class="collapsible-header">📋 Debug Logs (Last 50 lines)</summary>
+        <div class="logs-content">
+            <pre id="debug-logs" class="logs-display">Loading logs...</pre>
+            <button onclick="reloadLogs()" class="btn btn-secondary">Refresh Logs</button>
+        </div>
+    </details>
+</section>
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/charts.js') }}"></script>
+
+<script>
+    // Global state
+    let chartInstances = {};
+    let tradesPage = 0;
+    let tradesPerPage = 50;
+
+    // Initialize dashboard on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log('Dashboard initializing...');
+        initializeCharts();
+        startAutoRefresh();
+        loadLogs(); // Load logs once on startup
+    });
+
+    // Handle page visibility - pause updates when hidden
+    document.addEventListener('visibilitychange', function() {
+        if (document.hidden) {
+            console.log('Page hidden, pausing updates');
+        } else {
+            console.log('Page visible, resuming updates');
+            // Force immediate update
+            updateAllMetrics();
+        }
+    });
+
+    // Functions
+    function reloadTrades() {
+        tradesPage = 0;
+        updateTrades();
+    }
+
+    function nextTrades() {
+        tradesPage++;
+        updateTrades();
+    }
+
+    function previousTrades() {
+        if (tradesPage > 0) tradesPage--;
+        updateTrades();
+    }
+
+    function reloadLogs() {
+        loadLogs();
+    }
+</script>
+{% endblock %}

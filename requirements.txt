@@ -9,3 +9,5 @@ numpy-financial>=1.0.0
 schedule>=1.2.0
 pytz>=2023.3
 colorlog>=6.7.0
+flask>=2.3.0
+flask-cors>=4.0.0
