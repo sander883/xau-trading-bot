@@ -32,7 +32,15 @@ class TradingDataParser:
             config_dir: Path to config directory for additional data
         """
         if log_file is None:
-            log_file = Path(__file__).parent.parent / "logs" / "trading.log"
+            # Check for trading_bot.log first (bot default), then trading.log (demo)
+            log_dir = Path(__file__).parent.parent / "logs"
+            trading_bot_log = log_dir / "trading_bot.log"
+            trading_log = log_dir / "trading.log"
+
+            if trading_bot_log.exists():
+                log_file = str(trading_bot_log)
+            else:
+                log_file = str(trading_log)
         self.log_file = Path(log_file)
         self.config_dir = Path(config_dir) if config_dir else Path(__file__).parent.parent / "config"
 
