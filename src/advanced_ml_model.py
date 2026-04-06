@@ -97,8 +97,7 @@ class AdvancedMLModel:
 
             # 5. RSI Features
             if 'RSI' in df.columns:
-                df_features['RSI_ZONE'] = pd.cut(df['RSI'], bins=[0, 30, 50, 70, 100], labels=[0, 1, 2, 3])
-                df_features['RSI_ZONE'] = df_features['RSI_ZONE'].astype(int)
+                df_features['RSI_ZONE'] = pd.cut(df['RSI'], bins=[0, 30, 50, 70, 100], labels=[0, 1, 2, 3]).astype(float)
                 df_features['RSI_DIVERGENCE'] = df['RSI'] - df['RSI'].shift(5)
 
             # 6. MACD Features
@@ -132,7 +131,7 @@ class AdvancedMLModel:
             # 11. ADX Features
             if 'ADX' in df.columns:
                 df_features['TREND_STRENGTH'] = df['ADX'] / 50  # Normalize to 0-1
-                df_features['IS_TRENDING'] = (df['ADX'] > 20).astype(int)
+                df_features['IS_TRENDING'] = (df['ADX'] > 20).astype(float)
 
             # 12. Time-based Features
             df_features['HOUR'] = pd.to_datetime(df.index).hour
@@ -144,8 +143,8 @@ class AdvancedMLModel:
                 df_features[f'RETURN_LAG_{lag}'] = df['Close'].pct_change(lag)
 
             # Fill NaN values
-            df_features.fillna(method='bfill', inplace=True)
-            df_features.fillna(method='ffill', inplace=True)
+            df_features = df_features.bfill().ffill()
+            df_features = df_features.fillna(0)
 
             logger.info(f"Features engineered: {len(df_features.columns)} features created")
             return df_features
