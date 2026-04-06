@@ -123,6 +123,11 @@ class DataFetcher:
         if isinstance(end_date, str):
             end_date = datetime.strptime(end_date, '%Y-%m-%d')
 
+        # If MT5 not available, return demo data
+        if not self.connected or mt5 is None:
+            logger.warning(f"MT5 not available - generating demo data for {symbol}")
+            return self._generate_demo_data(symbol, start_date, end_date, timeframe)
+
         try:
             tf_map = {
                 '1M': mt5.TIMEFRAME_M1,
@@ -152,6 +157,67 @@ class DataFetcher:
 
         except Exception as e:
             logger.error(f"Error fetching historical data: {e}")
+            return None
+
+    def _generate_demo_data(self, symbol, start_date, end_date, timeframe='1H'):
+        """Generate synthetic demo data for backtesting without MT5.
+
+        Args:
+            symbol: Trading symbol
+            start_date: Start date
+            end_date: End date
+            timeframe: Timeframe string
+
+        Returns:
+            DataFrame with synthetic OHLC data
+        """
+        try:
+            import numpy as np
+
+            # Timeframe to frequency mapping
+            freq_map = {
+                '1M': 'T',
+                '5M': '5T',
+                '15M': '15T',
+                '30M': '30T',
+                '1H': 'H',
+                '4H': '4H',
+                '1D': 'D'
+            }
+            freq = freq_map.get(timeframe, 'H')
+
+            # Generate date range
+            dates = pd.date_range(start=start_date, end=end_date, freq=freq)
+
+            # Generate synthetic price data for XAUUSD
+            base_price = 2350.0 if symbol == 'XAUUSD' else 1.0
+
+            # Create trend with some noise
+            trend = np.linspace(0, 100, len(dates))
+            noise = np.random.normal(0, 10, len(dates))
+            close_prices = base_price + trend + noise
+
+            # Generate OHLC from close prices
+            opens = close_prices + np.random.normal(0, 2, len(dates))
+            highs = np.maximum(opens, close_prices) + np.abs(np.random.normal(0, 3, len(dates)))
+            lows = np.minimum(opens, close_prices) - np.abs(np.random.normal(0, 3, len(dates)))
+            volumes = np.random.uniform(1000, 10000, len(dates))
+
+            df = pd.DataFrame({
+                'Open': opens,
+                'High': highs,
+                'Low': lows,
+                'Close': close_prices,
+                'Volume': volumes
+            }, index=dates)
+
+            df.index.name = 'time'
+
+            logger.info(f"Generated {len(df)} demo candles for {symbol} ({timeframe})")
+            return df
+
+        except Exception as e:
+            logger.error(f"Error generating demo data: {e}")
             return None
 
     def save_data_to_csv(self, df, filename):
