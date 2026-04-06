@@ -174,15 +174,15 @@ class DataFetcher:
         try:
             import numpy as np
 
-            # Timeframe to frequency mapping
+            # Timeframe to frequency mapping (lowercase for newer pandas)
             freq_map = {
-                '1M': 'T',
-                '5M': '5T',
-                '15M': '15T',
-                '30M': '30T',
-                '1H': 'H',
-                '4H': '4H',
-                '1D': 'D'
+                '1M': 'min',
+                '5M': '5min',
+                '15M': '15min',
+                '30M': '30min',
+                '1H': 'h',
+                '4H': '4h',
+                '1D': 'd'
             }
             freq = freq_map.get(timeframe, 'H')
 
