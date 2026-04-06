@@ -71,6 +71,19 @@ class TradingEngine:
             Trade ID or None if failed
         """
         try:
+            # Check if MT5 is available
+            if not HAS_MT5 or mt5 is None:
+                logger.warning(f"MT5 not available - cannot open real trade. Simulating trade instead.")
+                # Simulate trade for demo mode
+                self.order_counter += 1
+                trade_id = f"demo_{self.order_counter}"
+
+                sl = self.risk_manager.calculate_stop_loss(entry_price, trade_type)
+                tp = self.risk_manager.calculate_take_profit(entry_price, trade_type)
+
+                logger.info(f"[DEMO] Trade opened: ID={trade_id} Type={trade_type} Price={entry_price} SL={sl} TP={tp}")
+                return trade_id
+
             # Calculate SL and TP
             sl = self.risk_manager.calculate_stop_loss(entry_price, trade_type)
             tp = self.risk_manager.calculate_take_profit(entry_price, trade_type)
@@ -143,6 +156,11 @@ class TradingEngine:
             Exit price or None if failed
         """
         try:
+            # Check if MT5 is available
+            if not HAS_MT5 or mt5 is None:
+                logger.warning(f"MT5 not available - simulating trade close for {trade_id}")
+                return None  # Demo mode: no actual closing
+
             # Get current price
             tick = mt5.symbol_info_tick(symbol)
             if tick is None:
